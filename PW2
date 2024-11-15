@@ -1,0 +1,184 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+public interface ICatalog
+{
+    void AddBook(Book book);
+    Book SearchByTitle(string title);
+    List<Book> FilterByAuthor(string author);
+    List<Book> FilterByGenre(string genre);
+}
+
+public interface ILoanSystem
+{
+    void LoanBook(Book book, Reader reader);
+    void ReturnBook(Book book, Reader reader);
+    List<LoanRecord> GetLoanRecords();
+}
+
+public class Book
+{
+    public string Title { get; }
+    public string Author { get; }
+    public string Genre { get; }
+    public string ISBN { get; }
+
+    public bool IsAvailable { get; private set; } = true;
+
+    public Book(string title, string author, string genre, string isbn)
+    {
+        Title = title;
+        Author = author;
+        Genre = genre;
+        ISBN = isbn;
+    }
+
+    public void ChangeAvailability(bool status)
+    {
+        IsAvailable = status;
+    }
+}
+
+public class Reader
+{
+    public string FirstName { get; }
+    public string LastName { get; }
+    public int CardNumber { get; }
+
+    public Reader(string firstName, string lastName, int cardNumber)
+    {
+        FirstName = firstName;
+        LastName = lastName;
+        CardNumber = cardNumber;
+    }
+}
+
+public class Librarian
+{
+    private readonly ICatalog _catalog;
+    private readonly ILoanSystem _loanSystem;
+
+    public Librarian(ICatalog catalog, ILoanSystem loanSystem)
+    {
+        _catalog = catalog;
+        _loanSystem = loanSystem;
+    }
+
+    public void LoanBookToReader(Book book, Reader reader)
+    {
+        if (!book.IsAvailable)
+        {
+            Console.WriteLine($"Книга '{book.Title}' недоступна.");
+            return;
+        }
+
+        _loanSystem.LoanBook(book, reader);
+        Console.WriteLine($"Книга '{book.Title}' выдана {reader.FirstName} {reader.LastName}.");
+    }
+
+    public void AcceptReturnedBook(Book book, Reader reader)
+    {
+        _loanSystem.ReturnBook(book, reader);
+        Console.WriteLine($"Книга '{book.Title}' возвращена читателем {reader.FirstName} {reader.LastName}.");
+    }
+}
+
+public class Catalog : ICatalog
+{
+    private readonly List<Book> books = new();
+
+    public void AddBook(Book book)
+    {
+        books.Add(book);
+    }
+
+    public Book SearchByTitle(string title)
+    {
+        return books.FirstOrDefault(b => b.Title.Equals(title, StringComparison.OrdinalIgnoreCase));
+    }
+
+    public List<Book> FilterByAuthor(string author)
+    {
+        return books.Where(b => b.Author.Equals(author, StringComparison.OrdinalIgnoreCase)).ToList();
+    }
+
+    public List<Book> FilterByGenre(string genre)
+    {
+        return books.Where(b => b.Genre.Equals(genre, StringComparison.OrdinalIgnoreCase)).ToList();
+    }
+}
+
+public class LoanRecord
+{
+    public Book Book { get; }
+    public Reader Reader { get; }
+    public DateTime LoanDate { get; }
+    public DateTime? ReturnDate { get; private set; }
+
+    public LoanRecord(Book book, Reader reader)
+    {
+        Book = book;
+        Reader = reader;
+        LoanDate = DateTime.Now;
+    }
+
+    public void MarkAsReturned()
+    {
+        ReturnDate = DateTime.Now;
+    }
+}
+
+public class LoanSystem : ILoanSystem
+{
+    private readonly List<LoanRecord> loanRecords = new();
+
+    public void LoanBook(Book book, Reader reader)
+    {
+        if (!book.IsAvailable) throw new InvalidOperationException("Книга недоступна.");
+
+        var loanRecord = new LoanRecord(book, reader);
+        loanRecords.Add(loanRecord);
+        book.ChangeAvailability(false);
+    }
+
+    public void ReturnBook(Book book, Reader reader)
+    {
+        var record = loanRecords.FirstOrDefault(r => r.Book == book && r.Reader == reader && r.ReturnDate == null);
+        if (record == null) throw new InvalidOperationException("Запись о выдаче книги не найдена.");
+
+        record.MarkAsReturned();
+        book.ChangeAvailability(true);
+    }
+
+    public List<LoanRecord> GetLoanRecords()
+    {
+        return loanRecords;
+    }
+}
+
+class Program
+{
+    static void Main()
+    {
+        var catalog = new Catalog();
+        var loanSystem = new LoanSystem();
+        var librarian = new Librarian(catalog, loanSystem);
+
+        var book1 = new Book("Война и мир", "Лев Толстой", "Роман", "978-5-17-118366-6");
+        var book2 = new Book("Преступление и наказание", "Федор Достоевский", "Роман", "978-5-17-118367-3");
+        catalog.AddBook(book1);
+        catalog.AddBook(book2);
+
+        var reader = new Reader("Иван", "Иванов", 12345);
+
+        librarian.LoanBookToReader(book1, reader);
+        librarian.AcceptReturnedBook(book1, reader);
+
+        var foundBook = catalog.SearchByTitle("Война и мир");
+        if (foundBook != null)
+        {
+            Console.WriteLine($"Найдена книга: {foundBook.Title} - {foundBook.Author}");
+        }
+    }
+}
