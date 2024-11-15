@@ -1,0 +1,160 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+abstract class User
+{
+    public int Id { get; }
+    public string Name { get; }
+    public string Email { get; }
+    
+    protected User(int id, string name, string email)
+    {
+        Id = id;
+        Name = name;
+        Email = email;
+    }
+}
+
+class Reader : User
+{
+    public List<Loan> CurrentLoans { get; } = new List<Loan>();
+
+    public Reader(int id, string name, string email) : base(id, name, email) { }
+
+    public void BorrowBook(Book book, DateTime loanDate)
+    {
+        if (!book.IsAvailable)
+            throw new Exception("The book is not available.");
+        
+        var loan = new Loan(this, book, loanDate);
+        CurrentLoans.Add(loan);
+        book.ChangeAvailabilityStatus(false);
+    }
+
+    public void ReturnBook(Book book)
+    {
+        var loan = CurrentLoans.FirstOrDefault(l => l.Book == book && l.ReturnDate == null);
+        if (loan == null) throw new Exception("Loan record not found.");
+
+        loan.CompleteLoan();
+        book.ChangeAvailabilityStatus(true);
+    }
+}
+
+class Librarian : User
+{
+    public Librarian(int id, string name, string email) : base(id, name, email) { }
+
+    public void AddBook(Library library, Book book)
+    {
+        library.AddBook(book);
+    }
+
+    public void RemoveBook(Library library, Book book)
+    {
+        library.RemoveBook(book);
+    }
+}
+
+class Book
+{
+    public string Title { get; }
+    public string ISBN { get; }
+    public List<Author> Authors { get; }
+    public int PublicationYear { get; }
+    public bool IsAvailable { get; private set; } = true;
+
+    public Book(string title, string isbn, List<Author> authors, int publicationYear)
+    {
+        Title = title;
+        ISBN = isbn;
+        Authors = authors;
+        PublicationYear = publicationYear;
+    }
+
+    public void ChangeAvailabilityStatus(bool isAvailable)
+    {
+        IsAvailable = isAvailable;
+    }
+
+    public void GetBookInfo()
+    {
+        Console.WriteLine($"Title: {Title}, ISBN: {ISBN}, Year: {PublicationYear}, Available: {IsAvailable}");
+    }
+}
+
+class Author
+{
+    public string Name { get; }
+    public string Bio { get; }
+
+    public Author(string name, string bio)
+    {
+        Name = name;
+        Bio = bio;
+    }
+}
+
+class Loan
+{
+    public Reader Reader { get; }
+    public Book Book { get; }
+    public DateTime LoanDate { get; }
+    public DateTime? ReturnDate { get; private set; }
+
+    public Loan(Reader reader, Book book, DateTime loanDate)
+    {
+        Reader = reader;
+        Book = book;
+        LoanDate = loanDate;
+    }
+
+    public void CompleteLoan()
+    {
+        ReturnDate = DateTime.Now;
+    }
+}
+
+class Library
+{
+    private List<Book> books = new List<Book>();
+    private List<User> users = new List<User>();
+
+    public void AddBook(Book book) => books.Add(book);
+    public void RemoveBook(Book book) => books.Remove(book);
+
+    public void RegisterUser(User user) => users.Add(user);
+
+    public Book FindBookByTitle(string title) => books.FirstOrDefault(b => b.Title == title);
+
+    public void DisplayAvailableBooks()
+    {
+        foreach (var book in books.Where(b => b.IsAvailable))
+        {
+            book.GetBookInfo();
+        }
+    }
+
+    public Report GenerateReport()
+    {
+        return new Report();
+    }
+}
+
+class Report
+{
+    public void GenerateBookPopularityReport(List<Loan> loans)
+    {
+        var popularBooks = loans
+            .GroupBy(l => l.Book.Title)
+            .OrderByDescending(g => g.Count())
+            .Take(10);
+
+        Console.WriteLine("Top 10 Popular Books:");
+        foreach (var bookGroup in popularBooks)
+        {
+            Console.WriteLine($"{bookGroup.Key}: {bookGroup.Count()} times borrowed.");
+        }
+    }
+}
